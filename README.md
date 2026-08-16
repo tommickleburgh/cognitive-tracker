@@ -1,34 +1,29 @@
-# Cognitive Tracker PWA
+# Cognitive Tracker V2
 
-A mobile-first, local-first educational cognitive self-tracking prototype.
+A mobile-first, local-first educational research prototype for longitudinal cognitive self-tracking.
 
-## Run locally
-A service worker requires HTTP/HTTPS rather than opening `index.html` directly.
+## V2 features
+- Clinical safety gate for acute neurological symptoms, familiar-route disorientation, and progressive functional decline
+- Current-state confounders: sleep, stress, illness/fatigue, substances, medication changes, and sensory issues
+- Expanded 12-item digital cognitive strain questionnaire
+- Adaptive reverse-sequence working-memory task
+- Adaptive 4×4 spatial-grid recall task
+- Sustained-attention go/no-go task with practice, omissions, false alarms, median reaction time, and reaction-time variability
+- Matched number-only and alternating number-letter executive tasks with switch-cost scoring
+- 5×5 route-reconstruction task
+- Delayed word recall
+- Everyday functional-change questionnaire
+- Separate digital/lifestyle strain and cognitive-performance axes
+- Clinical override logic for red-flag patterns
+- Three-session personal baseline and longitudinal domain charts
+- Local browser storage with JSON export/import
+- PWA/offline support
 
-From this folder on a computer:
+## Deliberately not included yet
+Version 2 does **not** implement the proposed test-quality interruption gates based on tab visibility, focus/blur, orientation changes, or session interruptions.
 
-```bash
-python -m http.server 8000
-```
+## Scientific framing
+This application does not diagnose dementia or establish that technology causes cognitive impairment. It treats digital cognitive strain and objective cognitive performance as separate dimensions. Numerical task scores and interpretation bands are prototype engineering conventions, not validated clinical norms or cutoffs.
 
-Then visit `http://localhost:8000`.
-
-## Publish to GitHub Pages
-Upload all files in this folder to the root of a GitHub repository, then enable GitHub Pages for the repository.
-
-## Current features
-- Monthly assessments
-- Randomized word-learning task
-- Working-memory digit task
-- Five-trial reaction-time task
-- Executive sequencing task
-- Delayed recall
-- Everyday-function questionnaire
-- Local browser history
-- Initial 3-session personal baseline
-- Trend charts
-- JSON export/import backup
-- PWA manifest and offline service worker
-
-## Important
-This is an educational prototype, not a validated cognitive screening instrument or diagnostic medical device.
+## Deployment
+This repository is designed for static hosting such as GitHub Pages.
