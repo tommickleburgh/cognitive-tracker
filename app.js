@@ -1,509 +1,101 @@
 (() => {
-  "use strict";
-
-  const STORAGE_KEY = "cognitiveTracker.sessions.v1";
-  const $ = id => document.getElementById(id);
-
-  const steps = [
-    ["Context","stepContext"],
-    ["Memory","stepMemory"],
-    ["Working memory","stepWorking"],
-    ["Attention","stepAttention"],
-    ["Executive function","stepExecutive"],
-    ["Delayed recall","stepRecall"],
-    ["Everyday function","stepFunction"]
-  ];
-
-  const wordBanks = [
-    ["garden","velvet","candle","river","ticket"],
-    ["planet","coffee","window","pencil","orange"],
-    ["forest","silver","button","market","cloud"],
-    ["camera","lemon","bridge","jacket","ocean"],
-    ["harbor","mirror","basket","purple","engine"],
-    ["meadow","bottle","paper","castle","banana"],
-    ["winter","button","ladder","pocket","tomato"],
-    ["station","cotton","island","hammer","violet"],
-    ["sunset","folder","pepper","bridge","silver"],
-    ["museum","blanket","apple","window","forest"],
-    ["garden","piano","rocket","yellow","basket"],
-    ["coffee","island","mirror","candle","jacket"]
-  ];
-
-  const functionItems = [
-    "I repeat questions or recently told information more than I used to.",
-    "I forget recent conversations, appointments, or events despite trying to remember them.",
-    "I lose track of familiar multi-step tasks.",
-    "I struggle more with planning, scheduling, budgeting, or problem-solving.",
-    "I have become disoriented in familiar places.",
-    "Cognitive problems interfere with work, school, or everyday responsibilities."
-  ];
-
-  let currentStep = 0;
-  let installPrompt = null;
-  let session = freshSession();
-  let reactionTrial = 0;
-  let reactionStart = 0;
-  let reactionTimer = null;
-  let reactionFalseStart = false;
-
-  function freshSession(){
-    return {
-      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random(),
-      date: new Date().toISOString(),
-      context: {},
-      words: [],
-      recallScore: null,
-      digitSequence: "",
-      digitCorrect: null,
-      reactionTimes: [],
-      executiveCorrect: null,
-      functionScore: 0,
-      scores: {}
-    };
-  }
-
-  function loadSessions(){
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
-    catch { return []; }
-  }
-
-  function saveSessions(sessions){
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-  }
-
-  function showView(id){
-    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
-    $(id).classList.add("active");
-    window.scrollTo({top:0,behavior:"smooth"});
-    if(id === "homeView") updateHome();
-    if(id === "historyView") renderHistory();
-  }
-
-  function setupFunctionQuestions(){
-    const host = $("functionQuestions");
-    host.innerHTML = "";
-    functionItems.forEach((text, idx) => {
-      const wrap = document.createElement("div");
-      wrap.className = "field";
-      wrap.innerHTML = `
-        <span>${text}</span>
-        <select data-function="${idx}">
-          <option value="">Select</option>
-          <option value="0">No</option>
-          <option value="1">Slightly</option>
-          <option value="2">Noticeably</option>
-          <option value="3">Substantially</option>
-        </select>`;
-      host.appendChild(wrap);
-    });
-  }
-
-  function resetAssessmentUI(){
-    session = freshSession();
-    reactionTrial = 0;
-    currentStep = 0;
-    ["sleepHours","stressLevel","screenTime"].forEach(id => $(id).value = "");
-    $("illnessToday").checked = false;
-    $("wordDisplay").classList.add("hidden");
-    $("wordDisplay").textContent = "";
-    $("wordTimer").textContent = "";
-    $("startWordsBtn").disabled = false;
-    $("digitDisplay").classList.add("hidden");
-    $("digitEntry").classList.add("hidden");
-    $("digitAnswer").value = "";
-    $("startDigitsBtn").disabled = false;
-    $("digitStatus").textContent = "";
-    $("reactionTarget").classList.add("hidden");
-    $("reactionTarget").classList.remove("ready");
-    $("reactionStatus").textContent = "";
-    $("startReactionBtn").disabled = false;
-    $("alternateAnswer").value = "";
-    $("recallAnswer").value = "";
-    setupFunctionQuestions();
-    renderStep();
-  }
-
-  function renderStep(){
-    steps.forEach(([_, id], idx) => $(id).classList.toggle("hidden", idx !== currentStep));
-    $("stepTitle").textContent = steps[currentStep][0];
-    $("stepCounter").textContent = `${currentStep + 1} / ${steps.length}`;
-    $("progressBar").style.width = `${((currentStep + 1) / steps.length) * 100}%`;
-    $("backBtn").disabled = currentStep === 0;
-    $("nextBtn").textContent = currentStep === steps.length - 1 ? "Finish assessment" : "Continue";
-  }
-
-  function collectCurrentStep(){
-    if(currentStep === 0){
-      session.context = {
-        sleepHours: Number($("sleepHours").value || 0),
-        stressLevel: Number($("stressLevel").value || 0),
-        screenTime: Number($("screenTime").value || 0),
-        illnessToday: $("illnessToday").checked
-      };
-    }
-    if(currentStep === 4){
-      const ans = $("alternateAnswer").value.toUpperCase().replace(/[^A-Z0-9]/g,"");
-      session.executiveCorrect = ans === "1A2B3C4D";
-    }
-    if(currentStep === 5){
-      const tokens = $("recallAnswer").value.toLowerCase()
-        .split(/[\s,;]+/).map(x => x.trim()).filter(Boolean);
-      session.recallScore = session.words.filter(w => tokens.includes(w.toLowerCase())).length;
-    }
-    if(currentStep === 6){
-      const vals = [...document.querySelectorAll("[data-function]")]
-        .map(el => Number(el.value || 0));
-      session.functionScore = vals.reduce((a,b)=>a+b,0);
-    }
-  }
-
-  function startWords(){
-    session.words = wordBanks[Math.floor(Math.random() * wordBanks.length)];
-    $("startWordsBtn").disabled = true;
-    $("wordDisplay").textContent = session.words.join(" • ");
-    $("wordDisplay").classList.remove("hidden");
-    let remaining = 15;
-    $("wordTimer").textContent = `${remaining} seconds`;
-    const timer = setInterval(() => {
-      remaining--;
-      $("wordTimer").textContent = remaining > 0 ? `${remaining} seconds` : "Words hidden. Continue.";
-      if(remaining <= 0){
-        clearInterval(timer);
-        $("wordDisplay").classList.add("hidden");
-        $("wordDisplay").textContent = "";
-      }
-    },1000);
-  }
-
-  function startDigits(){
-    session.digitSequence = String(Math.floor(100000 + Math.random()*900000));
-    $("startDigitsBtn").disabled = true;
-    $("digitDisplay").textContent = session.digitSequence;
-    $("digitDisplay").classList.remove("hidden");
-    $("digitStatus").textContent = "Memorize the number.";
-    setTimeout(() => {
-      $("digitDisplay").classList.add("hidden");
-      $("digitDisplay").textContent = "";
-      $("digitEntry").classList.remove("hidden");
-      $("digitAnswer").focus();
-      $("digitStatus").textContent = "Enter the six digits.";
-    },4000);
-  }
-
-  function submitDigits(){
-    const ans = $("digitAnswer").value.replace(/\D/g,"");
-    if(ans.length !== 6){
-      $("digitStatus").textContent = "Please enter six digits.";
-      return;
-    }
-    session.digitCorrect = ans === session.digitSequence;
-    $("digitEntry").classList.add("hidden");
-    $("digitStatus").textContent = "Answer recorded.";
-  }
-
-  function startReaction(){
-    session.reactionTimes = [];
-    reactionTrial = 0;
-    $("startReactionBtn").disabled = true;
-    $("reactionTarget").classList.remove("hidden");
-    scheduleReactionTrial();
-  }
-
-  function scheduleReactionTrial(){
-    reactionFalseStart = false;
-    $("reactionTarget").classList.remove("ready");
-    $("reactionTarget").textContent = "Wait…";
-    $("reactionStatus").textContent = `Trial ${reactionTrial + 1} of 5`;
-    const delay = 1400 + Math.floor(Math.random()*2200);
-    reactionTimer = setTimeout(() => {
-      reactionStart = performance.now();
-      $("reactionTarget").classList.add("ready");
-      $("reactionTarget").textContent = "TAP!";
-    },delay);
-  }
-
-  function tapReaction(){
-    if(!$("reactionTarget").classList.contains("ready")){
-      clearTimeout(reactionTimer);
-      reactionFalseStart = true;
-      $("reactionStatus").textContent = "Too early — retrying this trial.";
-      setTimeout(scheduleReactionTrial,900);
-      return;
-    }
-
-    const rt = Math.round(performance.now() - reactionStart);
-    session.reactionTimes.push(rt);
-    reactionTrial++;
-    $("reactionTarget").classList.remove("ready");
-    $("reactionTarget").textContent = `${rt} ms`;
-
-    if(reactionTrial >= 5){
-      const avg = Math.round(session.reactionTimes.reduce((a,b)=>a+b,0)/session.reactionTimes.length);
-      $("reactionStatus").textContent = `Average reaction time: ${avg} ms`;
-      $("reactionTarget").classList.add("hidden");
-    } else {
-      setTimeout(scheduleReactionTrial,800);
-    }
-  }
-
-  function computeScores(){
-    const memory = Math.round((session.recallScore ?? 0) / 5 * 100);
-    const working = session.digitCorrect === true ? 100 : session.digitCorrect === false ? 0 : 0;
-
-    let attention = 0;
-    if(session.reactionTimes.length){
-      const avg = session.reactionTimes.reduce((a,b)=>a+b,0)/session.reactionTimes.length;
-      attention = Math.max(0, Math.min(100, Math.round(100 - ((avg - 250)/400)*100)));
-    }
-
-    const executive = session.executiveCorrect ? 100 : 0;
-    const overall = Math.round(memory*0.35 + working*0.20 + attention*0.25 + executive*0.20);
-
-    session.scores = {memory,working,attention,executive,overall};
-    return session.scores;
-  }
-
-  function finishAssessment(){
-    collectCurrentStep();
-    const scores = computeScores();
-    const sessions = loadSessions();
-    sessions.push(session);
-    saveSessions(sessions);
-
-    $("overallScore").textContent = scores.overall;
-    $("memoryScore").textContent = scores.memory;
-    $("workingScore").textContent = scores.working;
-    $("attentionScore").textContent = scores.attention;
-    $("executiveScore").textContent = scores.executive;
-
-    const n = sessions.length;
-    let msg = "This score is best interpreted as a personal benchmark, not against other people.";
-    if(n <= 3) msg = `Session ${n} of 3 for your initial personal baseline. Avoid over-interpreting individual scores.`;
-    else {
-      const baseline = baselineOverall(sessions);
-      const delta = scores.overall - baseline;
-      msg = `Current overall score is ${Math.abs(Math.round(delta))} points ${delta >= 0 ? "above" : "below"} your initial baseline. Trends across multiple sessions matter more than one result.`;
-    }
-    $("resultMessage").textContent = msg;
-
-    if(session.functionScore >= 5){
-      $("functionNotice").classList.remove("hidden");
-      $("functionNotice").textContent =
-        "You reported noticeable changes in everyday cognitive function. Persistent or progressive functional change is worth discussing with a healthcare professional.";
-    } else {
-      $("functionNotice").classList.add("hidden");
-    }
-
-    showView("resultView");
-  }
-
-  function baselineOverall(sessions){
-    const first = sessions.slice(0,Math.min(3,sessions.length));
-    if(!first.length) return null;
-    return first.reduce((a,s)=>a+(s.scores?.overall||0),0)/first.length;
-  }
-
-  function updateHome(){
-    const sessions = loadSessions();
-    $("sessionCount").textContent = sessions.length;
-    if(sessions.length >= 3){
-      $("baselineStatus").textContent = Math.round(baselineOverall(sessions));
-    } else {
-      $("baselineStatus").textContent = `${sessions.length}/3 sessions`;
-    }
-
-    const hasTrend = sessions.length >= 2;
-    $("homeTrendEmpty").classList.toggle("hidden",hasTrend);
-    $("homeTrend").classList.toggle("hidden",!hasTrend);
-    if(hasTrend){
-      drawLineChart($("homeChart"), sessions.map(s=>s.scores.overall), sessions.map(s=>shortDate(s.date)), ["Overall"]);
-      const first = sessions[0].scores.overall;
-      const latest = sessions.at(-1).scores.overall;
-      const diff = latest-first;
-      $("trendSummary").textContent =
-        `From your first session to your latest, overall performance changed by ${diff >= 0 ? "+" : ""}${diff} points.`;
-    }
-  }
-
-  function shortDate(iso){
-    const d = new Date(iso);
-    return `${d.getMonth()+1}/${String(d.getFullYear()).slice(-2)}`;
-  }
-
-  function renderHistory(){
-    const sessions = loadSessions();
-    const has = sessions.length > 0;
-    $("historyEmpty").classList.toggle("hidden",has);
-    $("historyChart").classList.toggle("hidden",!has);
-    $("domainEmpty").classList.toggle("hidden",!has);
-    $("domainChart").classList.toggle("hidden",!has);
-
-    if(has){
-      const labels=sessions.map(s=>shortDate(s.date));
-      drawLineChart($("historyChart"), sessions.map(s=>s.scores.overall), labels, ["Overall"]);
-      drawMultiChart($("domainChart"), [
-        sessions.map(s=>s.scores.memory),
-        sessions.map(s=>s.scores.working),
-        sessions.map(s=>s.scores.attention),
-        sessions.map(s=>s.scores.executive)
-      ], labels, ["Memory","Working","Attention","Executive"]);
-    }
-
-    $("historyTable").innerHTML = sessions.length ? sessions.slice().reverse().map(s => `
-      <div class="history-row">
-        <div><strong>${new Date(s.date).toLocaleDateString()}</strong><br><span class="muted">${s.context?.sleepHours || "—"} h sleep • ${s.context?.screenTime || "—"} h screen</span></div>
-        <div><strong>${s.scores.overall}</strong><br><span class="muted">overall</span></div>
-        <div class="hide-mobile"><strong>${s.scores.memory}</strong><br><span class="muted">memory</span></div>
-      </div>`).join("") : '<div class="empty-state">No sessions stored.</div>';
-  }
-
-  function drawLineChart(canvas, values, labels){
-    drawMultiChart(canvas,[values],labels,["Overall"]);
-  }
-
-  function drawMultiChart(canvas, series, labels, names){
-    const ctx = canvas.getContext("2d");
-    const dpr = window.devicePixelRatio || 1;
-    const cssWidth = canvas.clientWidth || 800;
-    const cssHeight = Math.max(260, Math.round(cssWidth*0.46));
-    canvas.width = cssWidth*dpr;
-    canvas.height = cssHeight*dpr;
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-
-    const w=cssWidth,h=cssHeight;
-    ctx.clearRect(0,0,w,h);
-    const left=42,right=16,top=20,bottom=38;
-    const pw=w-left-right,ph=h-top-bottom;
-
-    ctx.strokeStyle="#e4e7ec"; ctx.lineWidth=1;
-    ctx.fillStyle="#667085"; ctx.font="12px system-ui";
-    [0,25,50,75,100].forEach(v=>{
-      const y=top+ph-(v/100)*ph;
-      ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke();
-      ctx.fillText(String(v),8,y+4);
-    });
-
-    const palette=["#3157d5","#12b76a","#f79009","#7a5af8"];
-    series.forEach((vals,si)=>{
-      ctx.strokeStyle=palette[si%palette.length];
-      ctx.fillStyle=palette[si%palette.length];
-      ctx.lineWidth=2.5;
-      ctx.beginPath();
-      vals.forEach((v,i)=>{
-        const x=left+(vals.length===1?pw/2:(i/(vals.length-1))*pw);
-        const y=top+ph-(v/100)*ph;
-        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-      });
-      ctx.stroke();
-      vals.forEach((v,i)=>{
-        const x=left+(vals.length===1?pw/2:(i/(vals.length-1))*pw);
-        const y=top+ph-(v/100)*ph;
-        ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fill();
-      });
-    });
-
-    labels.forEach((lab,i)=>{
-      const x=left+(labels.length===1?pw/2:(i/(labels.length-1))*pw);
-      ctx.fillStyle="#667085";
-      ctx.textAlign="center";
-      ctx.fillText(lab,x,h-12);
-    });
-
-    if(series.length>1){
-      ctx.textAlign="left";
-      names.forEach((name,i)=>{
-        ctx.fillStyle=palette[i%palette.length];
-        ctx.fillRect(left+i*95,4,10,10);
-        ctx.fillStyle="#475467";
-        ctx.fillText(name,left+14+i*95,13);
-      });
-    }
-  }
-
-  function exportData(){
-    const data = {
-      app:"Cognitive Tracker",
-      version:1,
-      exportedAt:new Date().toISOString(),
-      sessions:loadSessions()
-    };
-    const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;
-    a.download=`cognitive-tracker-backup-${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function importData(file){
-    try{
-      const text=await file.text();
-      const parsed=JSON.parse(text);
-      if(!Array.isArray(parsed.sessions)) throw new Error("Invalid backup");
-      saveSessions(parsed.sessions);
-      alert("Backup imported.");
-      renderHistory();
-    }catch(e){
-      alert("Could not import this backup file.");
-    }
-  }
-
-  function eraseData(){
-    if(confirm("Erase all locally stored Cognitive Tracker sessions? This cannot be undone unless you exported a backup.")){
-      localStorage.removeItem(STORAGE_KEY);
-      renderHistory();
-      updateHome();
-    }
-  }
-
-  function bind(){
-    $("startAssessmentBtn").addEventListener("click",()=>{resetAssessmentUI();showView("assessmentView")});
-    $("showHistoryBtn").addEventListener("click",()=>showView("historyView"));
-    $("historyHomeBtn").addEventListener("click",()=>showView("homeView"));
-    $("resultHomeBtn").addEventListener("click",()=>showView("homeView"));
-    $("resultHistoryBtn").addEventListener("click",()=>showView("historyView"));
-
-    $("backBtn").addEventListener("click",()=>{
-      collectCurrentStep();
-      if(currentStep>0){currentStep--;renderStep();}
-    });
-    $("nextBtn").addEventListener("click",()=>{
-      collectCurrentStep();
-      if(currentStep<steps.length-1){currentStep++;renderStep();}
-      else finishAssessment();
-    });
-
-    $("startWordsBtn").addEventListener("click",startWords);
-    $("startDigitsBtn").addEventListener("click",startDigits);
-    $("submitDigitsBtn").addEventListener("click",submitDigits);
-    $("startReactionBtn").addEventListener("click",startReaction);
-    $("reactionTarget").addEventListener("click",tapReaction);
-
-    $("exportBtn").addEventListener("click",exportData);
-    $("importFile").addEventListener("change",e=>{if(e.target.files[0]) importData(e.target.files[0])});
-    $("clearDataBtn").addEventListener("click",eraseData);
-
-    window.addEventListener("beforeinstallprompt",e=>{
-      e.preventDefault(); installPrompt=e; $("installBtn").classList.remove("hidden");
-    });
-    $("installBtn").addEventListener("click",async()=>{
-      if(installPrompt){installPrompt.prompt();installPrompt=null;$("installBtn").classList.add("hidden");}
-    });
-
-    window.addEventListener("resize",()=>{
-      if($("homeView").classList.contains("active")) updateHome();
-      if($("historyView").classList.contains("active")) renderHistory();
-    });
-  }
-
-  if("serviceWorker" in navigator){
-    window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(()=>{}));
-  }
-
-  document.addEventListener("DOMContentLoaded",()=>{
-    bind();
-    setupFunctionQuestions();
-    updateHome();
-  });
+"use strict";
+const STORAGE_KEY="cognitiveTracker.sessions.v2"; const $=id=>document.getElementById(id);
+const steps=[["Safety","stepSafety"],["Current state","stepContext"],["Digital strain","stepLifestyle"],["Working memory","stepWorking"],["Spatial memory","stepSpatial"],["Attention","stepAttention"],["Executive function","stepExecutive"],["Route memory","stepRoute"],["Delayed recall","stepRecall"],["Everyday function","stepFunction"],["Review","stepReview"]];
+const digitalItems=[
+ ["Outside work/school, approximately how many hours per day do you actively use screens?","exposure"],
+ ["How often do notifications interrupt something requiring concentration?","fragmentation"],
+ ["What proportion of notifications do you normally check within about five minutes?","control"],
+ ["How often do you open/check your phone before consciously deciding to?","control"],
+ ["How often do you use two media streams at once—for example video plus messaging?","fragmentation"],
+ ["How difficult is it to read continuously for 10 minutes without switching applications?","fragmentation"],
+ ["How often do you immediately search, photograph, or note information instead of first trying to remember it?","memory"],
+ ["How dependent are you on your device for recently encountered names, appointments, or basic information?","memory"],
+ ["How frequently do you use navigation for routes you could reasonably learn or already know?","navigation"],
+ ["Without GPS, how uncomfortable or disoriented do you feel on otherwise familiar routes?","navigation"],
+ ["How often does device use delay bedtime, interrupt sleep, or continue in bed longer than intended?","sleep"],
+ ["How often has device use interfered with study, work, relationships, or attempts to reduce your use?","sleep"]
+];
+const functionItems=["I repeat questions or recently told information more than I used to.","I forget recent conversations, appointments, or events despite trying to remember them.","I lose track of familiar multi-step tasks.","I struggle more with planning, scheduling, budgeting, or problem-solving.","I have become disoriented in familiar places.","Cognitive problems interfere with work, school, or everyday responsibilities."];
+const wordBanks=[["garden","velvet","candle","river","ticket"],["planet","coffee","window","pencil","orange"],["forest","silver","button","market","cloud"],["camera","lemon","bridge","jacket","ocean"],["harbor","mirror","basket","purple","engine"],["meadow","bottle","paper","castle","banana"],["winter","button","ladder","pocket","tomato"],["station","cotton","island","hammer","violet"]];
+let currentStep=0, installPrompt=null, session=freshSession();
+let reverse={span:3,trial:0,correctAtSpan:0,total:0,correct:0,seq:[]};
+let spatial={length:3,trial:0,correctAtLength:0,total:0,correct:0,seq:[],input:[],accepting:false};
+let attention={phase:"idle",index:0,trials:[],stimulus:null,onset:0,timer:null};
+let executive={phase:"idle",expected:[],index:0,start:0,baselineMs:null,switchMs:null,baselineErrors:0,switchErrors:0};
+let route={path:[],input:[],startIndex:12,accepting:false};
+function freshSession(){return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),date:new Date().toISOString(),safety:{},context:{},digital:{},tasks:{},functionScore:0,scores:{}}}
+function loadSessions(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")}catch{return[]}}
+function saveSessions(x){localStorage.setItem(STORAGE_KEY,JSON.stringify(x))}
+function showView(id){document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));$(id).classList.add("active");scrollTo({top:0,behavior:"smooth"});if(id==="homeView")updateHome();if(id==="historyView")renderHistory()}
+function setupQuestions(){
+ const d=$("digitalQuestions");d.innerHTML="";digitalItems.forEach((it,i)=>{const el=document.createElement("label");el.className="field";el.innerHTML=`<span>${it[0]}</span><select data-digital="${i}" data-domain="${it[1]}"><option value="">Select</option><option value="0">Never / very low</option><option value="1">Rarely / low</option><option value="2">Sometimes / moderate</option><option value="3">Often / high</option><option value="4">Very frequently / very high</option></select>`;d.appendChild(el)});
+ const f=$("functionQuestions");f.innerHTML="";functionItems.forEach((q,i)=>{const el=document.createElement("label");el.className="field";el.innerHTML=`<span>${q}</span><select data-function="${i}"><option value="">Select</option><option value="0">No</option><option value="1">Slightly</option><option value="2">Noticeably</option><option value="3">Substantially</option></select>`;f.appendChild(el)});
+}
+function resetAssessment(){session=freshSession();currentStep=0;reverse={span:3,trial:0,correctAtSpan:0,total:0,correct:0,seq:[]};spatial={length:3,trial:0,correctAtLength:0,total:0,correct:0,seq:[],input:[],accepting:false};attention={phase:"idle",index:0,trials:[],stimulus:null,onset:0,timer:null};executive={phase:"idle",expected:[],index:0,start:0,baselineMs:null,switchMs:null,baselineErrors:0,switchErrors:0};route={path:[],input:[],startIndex:12,accepting:false};document.querySelectorAll("input[type=checkbox]").forEach(x=>x.checked=false);document.querySelectorAll("select").forEach(x=>x.value="");$("recallAnswer").value="";setupQuestions();["reverseStimulus","reverseEntry","spatialGrid","attentionTarget","executiveBoard","routeGrid","wordDisplay","recallField"].forEach(id=>$(id).classList.add("hidden"));["startReverseBtn","startSpatialBtn","startAttentionBtn","startExecutiveBtn","startRouteBtn","showWordsBtn"].forEach(id=>{$(id).disabled=false});renderStep()}
+function renderStep(){steps.forEach(([,id],i)=>$(id).classList.toggle("hidden",i!==currentStep));$("stepTitle").textContent=steps[currentStep][0];$("stepCounter").textContent=`${currentStep+1} / ${steps.length}`;$("progressBar").style.width=`${((currentStep+1)/steps.length)*100}%`;$("backBtn").disabled=currentStep===0;$("nextBtn").textContent=currentStep===steps.length-1?"Finish assessment":"Continue";if(currentStep===10)buildChecklist()}
+function collectStep(){if(currentStep===0){session.safety={acute:$("acuteConfusion").checked,neuro:$("neuroSymptoms").checked,disorientation:$("familiarDisorientation").checked,progressive:$("progressiveFunction").checked}}if(currentStep===1){session.context={sleepHours:Number($("sleepHours").value||0),stress:Number($("stressLevel").value||0),illness:$("illnessToday").checked,substance:$("substanceToday").checked,medication:$("medicationChange").checked,sensory:$("sensoryIssue").checked}}if(currentStep===2){const vals=[...document.querySelectorAll("[data-digital]")].map(x=>({v:Number(x.value||0),domain:x.dataset.domain}));session.digital.raw=vals;session.digital.score=calcLifestyle(vals)}if(currentStep===9){session.functionScore=[...document.querySelectorAll("[data-function]")].reduce((s,x)=>s+Number(x.value||0),0)}}
+function safetyMessage(){const urgent=$("acuteConfusion").checked||$("neuroSymptoms").checked;const clinical=$("familiarDisorientation").checked||$("progressiveFunction").checked;const n=$("safetyNotice");if(urgent){n.className="notice danger";n.textContent="This pattern may require urgent medical evaluation. Do not rely on this self-check to explain sudden neurological or cognitive change.";n.classList.remove("hidden")}else if(clinical){n.className="notice";n.textContent="Progressive functional decline or familiar-route disorientation warrants clinical assessment regardless of digital habits.";n.classList.remove("hidden")}else n.classList.add("hidden")}
+function calcLifestyle(vals){const groups={fragmentation:[],memory:[],navigation:[],control:[],sleep:[]};vals.forEach(x=>{if(groups[x.domain])groups[x.domain].push(x.v)});const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:0;const F=avg(groups.fragmentation)*25,M=avg(groups.memory)*25,N=avg(groups.navigation)*25,C=avg(groups.control)*25,S=avg(groups.sleep)*25;return Math.round(.25*F+.20*M+.15*N+.20*C+.20*S)}
+function randomDigits(n){let s="";while(s.length<n){const d=Math.floor(Math.random()*10);if(s.length>=2&&Number(s.at(-1))+1===d&&Number(s.at(-2))+2===d)continue;s+=d}return s}
+async function presentReverse(){reverse.seq=randomDigits(reverse.span).split("");$("reverseStimulus").classList.remove("hidden");$("reverseEntry").classList.add("hidden");for(const d of reverse.seq){$("reverseStimulus").textContent=d;await wait(750);$("reverseStimulus").textContent="";await wait(250)}$("reverseStimulus").classList.add("hidden");await wait(1000);$("reverseEntry").classList.remove("hidden");$("reverseAnswer").value="";$("reverseAnswer").maxLength=reverse.span;$("reverseAnswer").focus();$("reverseStatus").textContent=`Span ${reverse.span}, trial ${reverse.trial+1} of 2`}
+function wait(ms){return new Promise(r=>setTimeout(r,ms))}
+function startReverse(){$("startReverseBtn").disabled=true;reverse={span:3,trial:0,correctAtSpan:0,total:0,correct:0,seq:[]};presentReverse()}
+function submitReverse(){const ans=$("reverseAnswer").value.replace(/\D/g,"");const target=reverse.seq.slice().reverse().join("");const ok=ans===target;reverse.total++;if(ok){reverse.correct++;reverse.correctAtSpan++}reverse.trial++;$("reverseEntry").classList.add("hidden");if(reverse.trial<2){setTimeout(presentReverse,600);return}if(reverse.correctAtSpan>=1&&reverse.span<8){reverse.span++;reverse.trial=0;reverse.correctAtSpan=0;setTimeout(presentReverse,600)}else{session.tasks.working={maxSpan:reverse.correctAtSpan>=1?reverse.span:reverse.span-1,accuracy:reverse.total?reverse.correct/reverse.total:0};$("reverseStatus").textContent=`Complete. Maximum demonstrated span: ${session.tasks.working.maxSpan}.`;}}
+function makeGrid(host,n,click){host.innerHTML="";for(let i=0;i<n*n;i++){const b=document.createElement("button");b.className="cell";b.type="button";b.dataset.i=i;if(click)b.addEventListener("click",()=>click(i,b));host.appendChild(b)}}
+function uniqueSeq(len,max){const out=[];while(out.length<len){const n=Math.floor(Math.random()*max);if(out.at(-1)!==n)out.push(n)}return out}
+async function presentSpatial(){spatial.seq=uniqueSeq(spatial.length,16);spatial.input=[];spatial.accepting=false;const cells=[...$("spatialGrid").children];for(const idx of spatial.seq){cells[idx].classList.add("flash");await wait(600);cells[idx].classList.remove("flash");await wait(200)}await wait(1000);spatial.accepting=true;$("spatialStatus").textContent=`Tap ${spatial.length} cells in order.`}
+function startSpatial(){$("startSpatialBtn").disabled=true;makeGrid($("spatialGrid"),4,spatialTap);$("spatialGrid").classList.remove("hidden");spatial={length:3,trial:0,correctAtLength:0,total:0,correct:0,seq:[],input:[],accepting:false};presentSpatial()}
+function spatialTap(i,b){if(!spatial.accepting)return;spatial.input.push(i);b.classList.add("selected");setTimeout(()=>b.classList.remove("selected"),180);if(spatial.input.length===spatial.length){spatial.accepting=false;const ok=spatial.input.every((v,j)=>v===spatial.seq[j]);spatial.total++;if(ok){spatial.correct++;spatial.correctAtLength++}spatial.trial++;if(spatial.trial<2)setTimeout(presentSpatial,650);else if(spatial.correctAtLength>=1&&spatial.length<7){spatial.length++;spatial.trial=0;spatial.correctAtLength=0;setTimeout(presentSpatial,650)}else{session.tasks.spatial={maxSpan:spatial.correctAtLength>=1?spatial.length:spatial.length-1,accuracy:spatial.correct/spatial.total};$("spatialStatus").textContent=`Complete. Maximum spatial span: ${session.tasks.spatial.maxSpan}.`;}}}
+function buildAttentionTrials(n){const arr=[];for(let i=0;i<n;i++)arr.push({type:Math.random()<.2?"nogo":"go"});return arr}
+function startAttention(){$("startAttentionBtn").disabled=true;attention={phase:"practice",index:0,trials:buildAttentionTrials(10),results:[],stimulus:null,onset:0,timer:null};$("attentionTarget").classList.remove("hidden");runAttentionTrial()}
+function runAttentionTrial(){if(attention.index>=attention.trials.length){if(attention.phase==="practice"){attention={phase:"scored",index:0,trials:buildAttentionTrials(80),results:[],stimulus:null,onset:0,timer:null};$("attentionStatus").textContent="Practice complete. Starting scored block…";setTimeout(runAttentionTrial,1000);return}finishAttention();return}const t=attention.trials[attention.index];attention.stimulus=t.type;const target=$("attentionTarget");target.classList.toggle("nogo",t.type==="nogo");target.textContent=t.type==="nogo"?"⬢":"●";requestAnimationFrame(()=>{attention.onset=performance.now();attention.responded=false;attention.timer=setTimeout(()=>{if(!attention.responded)recordAttention(null);},750)});$("attentionStatus").textContent=`${attention.phase==="practice"?"Practice":"Scored"} ${attention.index+1}/${attention.trials.length}`}
+function attentionTap(){if(attention.phase==="idle"||attention.responded)return;attention.responded=true;clearTimeout(attention.timer);recordAttention(performance.now()-attention.onset)}
+function recordAttention(rt){const type=attention.stimulus;attention.results.push({type,rt,responded:rt!==null});attention.index++;setTimeout(runAttentionTrial,180)}
+function finishAttention(){const r=attention.results;const go=r.filter(x=>x.type==="go"),ng=r.filter(x=>x.type==="nogo");const hits=go.filter(x=>x.responded),falseAlarms=ng.filter(x=>x.responded).length,omissions=go.length-hits.length;const rts=hits.map(x=>x.rt).sort((a,b)=>a-b);const median=rts.length?rts[Math.floor(rts.length/2)]:null;const mean=rts.reduce((s,v)=>s+v,0)/(rts.length||1);const sd=Math.sqrt(rts.reduce((s,v)=>s+(v-mean)**2,0)/(rts.length||1));session.tasks.attention={hits:hits.length,goN:go.length,falseAlarms,noGoN:ng.length,omissions,medianRT:Math.round(median||0),rtSD:Math.round(sd)};attention.phase="done";$("attentionTarget").classList.add("hidden");$("attentionStatus").textContent=`Complete. Omissions ${omissions}; false alarms ${falseAlarms}; median RT ${Math.round(median||0)} ms.`}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function execLabels(switching){return switching?["1","A","2","B","3","C","4","D","5","E","6","F"]:["1","2","3","4","5","6","7","8","9","10","11","12"]}
+function buildExecBoard(labels){const b=$("executiveBoard");b.innerHTML="";const pos=[];for(let i=0;i<labels.length;i++){let p;do{p={x:6+Math.random()*82,y:6+Math.random()*78}}while(pos.some(q=>Math.hypot(p.x-q.x,p.y-q.y)<15));pos.push(p);const btn=document.createElement("button");btn.className="target-dot";btn.textContent=labels[i];btn.style.left=`calc(${p.x}% - 24px)`;btn.style.top=`calc(${p.y}% - 24px)`;btn.addEventListener("click",()=>execTap(labels[i],btn));b.appendChild(btn)}b.classList.remove("hidden")}
+function startExecutive(){$("startExecutiveBtn").disabled=true;executive.phase="baseline";executive.expected=execLabels(false);executive.index=0;executive.baselineErrors=0;buildExecBoard(executive.expected);executive.start=performance.now();$("executiveStatus").textContent="Baseline: tap 1 through 12."}
+function execTap(label,btn){const expected=executive.expected[executive.index];if(label!==expected){btn.classList.add("error");setTimeout(()=>btn.classList.remove("error"),220);if(executive.phase==="baseline")executive.baselineErrors++;else executive.switchErrors++;return}btn.disabled=true;btn.style.opacity=.28;executive.index++;if(executive.index===executive.expected.length){const elapsed=performance.now()-executive.start;if(executive.phase==="baseline"){executive.baselineMs=elapsed;executive.phase="switch";executive.expected=execLabels(true);executive.index=0;setTimeout(()=>{buildExecBoard(executive.expected);executive.start=performance.now();$("executiveStatus").textContent="Switch block: tap 1 → A → 2 → B …"},700)}else{executive.switchMs=elapsed;session.tasks.executive={baselineMs:Math.round(executive.baselineMs),switchMs:Math.round(executive.switchMs),baselineErrors:executive.baselineErrors,switchErrors:executive.switchErrors,switchCost:Math.log(executive.switchMs)-Math.log(executive.baselineMs)};$("executiveBoard").classList.add("hidden");$("executiveStatus").textContent=`Complete. Baseline ${Math.round(executive.baselineMs/1000)} s; switch ${Math.round(executive.switchMs/1000)} s.`}}}
+function routeNeighbors(i){const r=Math.floor(i/5),c=i%5,o=[];if(r>0)o.push(i-5);if(r<4)o.push(i+5);if(c>0)o.push(i-1);if(c<4)o.push(i+1);return o}
+function makeRoute(){const path=[12];while(path.length<6){const opts=shuffle(routeNeighbors(path.at(-1)).filter(x=>!path.includes(x)));if(!opts.length)break;path.push(opts[0])}return path}
+async function startRoute(){$("startRouteBtn").disabled=true;makeGrid($("routeGrid"),5,routeTap);$("routeGrid").classList.remove("hidden");route.path=makeRoute();route.input=[];route.accepting=false;const cells=[...$("routeGrid").children];cells[route.path[0]].classList.add("start");for(const idx of route.path){cells[idx].classList.add("route");await wait(450)}await wait(900);cells.forEach(c=>c.classList.remove("route"));cells[route.path[0]].classList.add("start");route.input=[route.path[0]];route.accepting=true;$("routeStatus").textContent="Reproduce the route starting from the outlined cell."}
+function routeTap(i,b){if(!route.accepting||i===route.path[0])return;const prev=route.input.at(-1);if(!routeNeighbors(prev).includes(i))return;route.input.push(i);b.classList.add("selected");if(route.input.length===route.path.length){route.accepting=false;const transitions=route.input.slice(1).filter((v,j)=>v===route.path[j+1]).length;const endpoint=route.input.at(-1)===route.path.at(-1);session.tasks.route={transitions,possible:route.path.length-1,endpoint,accuracy:transitions/(route.path.length-1)};$("routeStatus").textContent=`Complete. Correct transitions: ${transitions}/${route.path.length-1}.`}}
+async function showWords(){session.words=wordBanks[Math.floor(Math.random()*wordBanks.length)];$("showWordsBtn").disabled=true;$("wordDisplay").textContent=session.words.join(" • ");$("wordDisplay").classList.remove("hidden");for(let n=15;n>0;n--){$("wordTimer").textContent=`${n} seconds`;await wait(1000)}$("wordDisplay").classList.add("hidden");$("wordDisplay").textContent="";$("wordTimer").textContent="Words hidden. Enter recalled words below.";$("recallField").classList.remove("hidden")}
+function collectRecall(){if(!session.words)return;const tokens=$("recallAnswer").value.toLowerCase().split(/[\s,;]+/).filter(Boolean);const score=session.words.filter(w=>tokens.includes(w)).length;session.tasks.recall={correct:score,total:5}}
+function scoreDomains(){
+ const w=session.tasks.working||{},s=session.tasks.spatial||{},a=session.tasks.attention||{},e=session.tasks.executive||{},r=session.tasks.route||{},m=session.tasks.recall||{};
+ const working=Math.round(Math.max(0,Math.min(100,((w.maxSpan||2)-2)/5*75+(w.accuracy||0)*25)));
+ const spatialScore=Math.round(Math.max(0,Math.min(100,((s.maxSpan||2)-2)/5*75+(s.accuracy||0)*25)));
+ const hitRate=a.goN?a.hits/a.goN:0,faRate=a.noGoN?a.falseAlarms/a.noGoN:0,cv=a.medianRT?Math.min(1,(a.rtSD||0)/a.medianRT):1;const attentionScore=Math.round(Math.max(0,Math.min(100,60*hitRate+30*(1-faRate)+10*(1-cv))));
+ let executiveScore=0;if(e.baselineMs&&e.switchMs){const ratio=e.switchMs/e.baselineMs;executiveScore=Math.round(Math.max(0,Math.min(100,100-35*Math.max(0,ratio-1)-6*(e.switchErrors||0)-3*(e.baselineErrors||0))))}
+ const routeScore=Math.round(((r.accuracy||0)*85)+(r.endpoint?15:0));const memory=Math.round((m.correct||0)/5*100);
+ const performance=Math.round(.22*working+.18*spatialScore+.22*attentionScore+.18*executiveScore+.10*routeScore+.10*memory);
+ session.scores={working,spatial:spatialScore,attention:attentionScore,executive:executiveScore,route:routeScore,memory,performance,lifestyle:session.digital.score||0};
+}
+function buildChecklist(){collectRecall();const done=[['Reverse span',!!session.tasks.working],['Spatial grid',!!session.tasks.spatial],['Attention',!!session.tasks.attention],['Executive',!!session.tasks.executive],['Route',!!session.tasks.route],['Delayed recall',!!session.tasks.recall]];$("completionChecklist").innerHTML=done.map(([n,x])=>`<div>${x?'✓':'○'} ${n}</div>`).join('')}
+function labelLifestyle(v){return v<30?"Low strain":v<50?"Mild strain":v<70?"Elevated strain":"Marked strain"}
+function labelPerformance(v){return v>=75?"Strong this session":v>=60?"Mixed/within-person watch":v>=45?"Lower this session":"Markedly low this session"}
+function interpretation(L,P){if(L<50&&P>=60)return"No substantial digital-strain pattern and no strong objective performance concern in this session.";if(L>=50&&P>=60)return"High digital dependency/fragmentation was reported, but objective cognitive performance was not broadly low in this session.";if(L<50&&P<60)return"Objective performance was lower while reported digital strain was not high. Digital habits do not explain this pattern; persistent change from your usual ability deserves clinical consideration.";return"Digital strain and lower cognitive performance occurred together. Digital habits may contribute, but sleep, mood, medical, psychiatric, neurological, and other causes must also be considered."}
+function finishAssessment(){collectStep();collectRecall();scoreDomains();const sessions=loadSessions();sessions.push(session);saveSessions(sessions);const s=session.scores;$("lifestyleScore").textContent=s.lifestyle;$("lifestyleLabel").textContent=labelLifestyle(s.lifestyle);$("performanceScore").textContent=s.performance;$("performanceLabel").textContent=labelPerformance(s.performance);$("workingScore").textContent=s.working;$("spatialScore").textContent=s.spatial;$("attentionScore").textContent=s.attention;$("executiveScore").textContent=s.executive;$("routeScore").textContent=s.route;$("memoryScore").textContent=s.memory;$("interpretationBox").textContent=interpretation(s.lifestyle,s.performance);const sn=session.safety;const cn=$("clinicalNotice");if(sn.acute||sn.neuro){cn.className="notice danger";cn.textContent="Urgent medical evaluation may be appropriate because you reported sudden or acute neurological/cognitive symptoms.";cn.classList.remove("hidden")}else if(sn.disorientation||sn.progressive||session.functionScore>=6){cn.className="notice";cn.textContent="Clinical assessment is recommended because you reported progressive functional change, familiar-route disorientation, or meaningful everyday impact.";cn.classList.remove("hidden")}else cn.classList.add("hidden");showView("resultView")}
+function baseline(sessions,key){const a=sessions.slice(0,Math.min(3,sessions.length)).map(s=>s.scores?.[key]).filter(Number.isFinite);return a.length?a.reduce((x,y)=>x+y,0)/a.length:null}
+function updateHome(){const sessions=loadSessions();$("sessionCount").textContent=sessions.length;$("baselineStatus").textContent=sessions.length>=3?`${Math.round(baseline(sessions,"performance"))} performance`:`${sessions.length}/3 sessions`;const has=sessions.length>=2;$("homeTrendEmpty").classList.toggle("hidden",has);$("homeTrend").classList.toggle("hidden",!has);if(has){drawMulti($("homeChart"),[sessions.map(s=>s.scores.performance),sessions.map(s=>s.scores.lifestyle)],sessions.map(s=>shortDate(s.date)),["Performance","Lifestyle strain"]);const b=baseline(sessions,"performance"),last=sessions.at(-1).scores.performance;$("trendSummary").textContent=sessions.length>=3?`Latest cognitive performance is ${Math.round(last-b)} points relative to your initial three-session baseline.`:"Baseline is still being established."}}
+function shortDate(iso){const d=new Date(iso);return`${d.getMonth()+1}/${String(d.getFullYear()).slice(-2)}`}
+function renderHistory(){const sessions=loadSessions(),has=sessions.length>0;$("historyEmpty").classList.toggle("hidden",has);$("historyChart").classList.toggle("hidden",!has);$("domainEmpty").classList.toggle("hidden",!has);$("domainChart").classList.toggle("hidden",!has);if(has){const labels=sessions.map(s=>shortDate(s.date));drawMulti($("historyChart"),[sessions.map(s=>s.scores.performance),sessions.map(s=>s.scores.lifestyle)],labels,["Performance","Lifestyle"]);drawMulti($("domainChart"),[sessions.map(s=>s.scores.working),sessions.map(s=>s.scores.spatial),sessions.map(s=>s.scores.attention),sessions.map(s=>s.scores.executive),sessions.map(s=>s.scores.route),sessions.map(s=>s.scores.memory)],labels,["Working","Spatial","Attention","Executive","Route","Recall"])}$("historyTable").innerHTML=sessions.length?sessions.slice().reverse().map(s=>`<div class="history-row"><div><strong>${new Date(s.date).toLocaleDateString()}</strong><br><span class="muted">${labelLifestyle(s.scores.lifestyle)}</span></div><div><strong>${s.scores.performance}</strong><br><span class="muted">performance</span></div><div class="hide-mobile"><strong>${s.scores.lifestyle}</strong><br><span class="muted">strain</span></div></div>`).join(""):'<div class="empty-state">No sessions stored.</div>'}
+function drawMulti(canvas,series,labels,names){const ctx=canvas.getContext("2d"),dpr=devicePixelRatio||1,w=canvas.clientWidth||800,h=Math.max(280,Math.round(w*.46));canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);const L=42,R=16,T=30,B=38,pw=w-L-R,ph=h-T-B;ctx.strokeStyle="#e4e7ec";ctx.fillStyle="#667085";ctx.font="12px system-ui";[0,25,50,75,100].forEach(v=>{const y=T+ph-v/100*ph;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(w-R,y);ctx.stroke();ctx.fillText(v,8,y+4)});const pal=["#3157d5","#f79009","#12b76a","#7a5af8","#06aed5","#d444f1"];series.forEach((vals,si)=>{ctx.strokeStyle=pal[si%pal.length];ctx.fillStyle=pal[si%pal.length];ctx.lineWidth=2.3;ctx.beginPath();vals.forEach((v,i)=>{const x=L+(vals.length===1?pw/2:i/(vals.length-1)*pw),y=T+ph-v/100*ph;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();vals.forEach((v,i)=>{const x=L+(vals.length===1?pw/2:i/(vals.length-1)*pw),y=T+ph-v/100*ph;ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);ctx.fill()})});labels.forEach((lab,i)=>{const x=L+(labels.length===1?pw/2:i/(labels.length-1)*pw);ctx.fillStyle="#667085";ctx.textAlign="center";ctx.fillText(lab,x,h-10)});ctx.textAlign="left";names.forEach((n,i)=>{if(i>5)return;ctx.fillStyle=pal[i%pal.length];ctx.fillRect(L+i*88,5,9,9);ctx.fillStyle="#475467";ctx.fillText(n,L+13+i*88,13)})}
+function exportData(){const blob=new Blob([JSON.stringify({app:"Cognitive Tracker",version:2,exportedAt:new Date().toISOString(),sessions:loadSessions()},null,2)],{type:"application/json"});const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=`cognitive-tracker-v2-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(u)}
+async function importData(file){try{const p=JSON.parse(await file.text());if(!Array.isArray(p.sessions))throw 0;saveSessions(p.sessions);alert("Backup imported.");renderHistory()}catch{alert("Could not import this backup.")}}
+function eraseData(){if(confirm("Erase all locally stored Cognitive Tracker sessions?")){localStorage.removeItem(STORAGE_KEY);renderHistory();updateHome()}}
+function bind(){
+ $("startAssessmentBtn").onclick=()=>{resetAssessment();showView("assessmentView")};$("showHistoryBtn").onclick=()=>showView("historyView");$("historyHomeBtn").onclick=()=>showView("homeView");$("resultHomeBtn").onclick=()=>showView("homeView");$("resultHistoryBtn").onclick=()=>showView("historyView");
+ ["acuteConfusion","neuroSymptoms","familiarDisorientation","progressiveFunction"].forEach(id=>$(id).addEventListener("change",safetyMessage));
+ $("backBtn").onclick=()=>{collectStep();if(currentStep>0){currentStep--;renderStep()}};$("nextBtn").onclick=()=>{collectStep();if(currentStep<steps.length-1){currentStep++;renderStep()}else finishAssessment()};
+ $("startReverseBtn").onclick=startReverse;$("submitReverseBtn").onclick=submitReverse;$("startSpatialBtn").onclick=startSpatial;$("startAttentionBtn").onclick=startAttention;$("attentionTarget").onclick=attentionTap;$("startExecutiveBtn").onclick=startExecutive;$("startRouteBtn").onclick=startRoute;$("showWordsBtn").onclick=showWords;
+ $("exportBtn").onclick=exportData;$("importFile").onchange=e=>e.target.files[0]&&importData(e.target.files[0]);$("clearDataBtn").onclick=eraseData;
+ window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installPrompt=e;$("installBtn").classList.remove("hidden")});$("installBtn").onclick=async()=>{if(installPrompt){installPrompt.prompt();installPrompt=null;$("installBtn").classList.add("hidden")}};
+ window.addEventListener("resize",()=>{if($("homeView").classList.contains("active"))updateHome();if($("historyView").classList.contains("active"))renderHistory()});
+}
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(()=>{}));
+document.addEventListener("DOMContentLoaded",()=>{bind();setupQuestions();updateHome()});
 })();
