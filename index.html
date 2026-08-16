@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#3157d5" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Cognitive Tracker" />
+  <title>Cognitive Tracker</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="shell header-row">
+      <div>
+        <div class="eyebrow">PERSONAL COGNITIVE TRACKING</div>
+        <h1>Cognitive Tracker</h1>
+      </div>
+      <button id="installBtn" class="ghost hidden">Install</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section id="homeView" class="view active">
+      <div class="hero card">
+        <span class="badge">Educational prototype</span>
+        <h2>Track your cognition against your own baseline.</h2>
+        <p>
+          Complete one assessment per month. Results stay on this device unless you export them.
+          This tool does not diagnose dementia or any other medical condition.
+        </p>
+        <div class="button-row">
+          <button id="startAssessmentBtn" class="primary large">Start monthly assessment</button>
+          <button id="showHistoryBtn" class="secondary">View history</button>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <article class="card">
+          <h3>Your baseline</h3>
+          <div id="baselineStatus" class="big-stat">Not established</div>
+          <p class="muted">The first 3 completed monthly sessions form your initial personal baseline.</p>
+        </article>
+
+        <article class="card">
+          <h3>Sessions</h3>
+          <div id="sessionCount" class="big-stat">0</div>
+          <p class="muted">Completed assessments stored locally on this browser.</p>
+        </article>
+      </div>
+
+      <article class="card">
+        <h3>Latest trend</h3>
+        <div id="homeTrendEmpty" class="empty-state">
+          Complete several sessions to begin seeing trends.
+        </div>
+        <div id="homeTrend" class="hidden">
+          <canvas id="homeChart" width="900" height="360"></canvas>
+          <div id="trendSummary" class="trend-summary"></div>
+        </div>
+      </article>
+
+      <article class="card warning">
+        <h3>Important</h3>
+        <p>
+          A poor score on one day can reflect sleep, stress, illness, distraction, medications, substances,
+          vision/hearing issues, or many other factors. Persistent or progressive cognitive changes that
+          interfere with everyday function should be discussed with a healthcare professional.
+        </p>
+      </article>
+    </section>
+
+    <section id="assessmentView" class="view">
+      <div class="card">
+        <div class="step-head">
+          <div>
+            <div class="eyebrow">MONTHLY ASSESSMENT</div>
+            <h2 id="stepTitle">Context</h2>
+          </div>
+          <div id="stepCounter" class="step-counter">1 / 7</div>
+        </div>
+        <div class="progress"><span id="progressBar"></span></div>
+      </div>
+
+      <div id="stepContext" class="assessment-step card">
+        <h3>How are you doing today?</h3>
+        <p class="muted">This context helps interpret month-to-month changes.</p>
+
+        <label class="field">
+          <span>Sleep last night</span>
+          <select id="sleepHours">
+            <option value="">Select</option>
+            <option value="4">&lt;5 hours</option>
+            <option value="5.5">5–6 hours</option>
+            <option value="6.5">6–7 hours</option>
+            <option value="7.5">7–8 hours</option>
+            <option value="8.5">8+ hours</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Stress today</span>
+          <select id="stressLevel">
+            <option value="">Select</option>
+            <option value="0">Low</option>
+            <option value="1">Mild</option>
+            <option value="2">Moderate</option>
+            <option value="3">High</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Recreational screen/social-media time per day</span>
+          <select id="screenTime">
+            <option value="">Select</option>
+            <option value="0.5">&lt;1 hour</option>
+            <option value="1.5">1–2 hours</option>
+            <option value="3">2–4 hours</option>
+            <option value="5">4–6 hours</option>
+            <option value="7">6+ hours</option>
+          </select>
+        </label>
+
+        <label class="check-row">
+          <input id="illnessToday" type="checkbox" />
+          <span>I am sick, recovering from illness, or unusually fatigued today.</span>
+        </label>
+      </div>
+
+      <div id="stepMemory" class="assessment-step card hidden">
+        <h3>Memory — word learning</h3>
+        <p>Study five words. They will be visible for 15 seconds, then disappear.</p>
+        <button id="startWordsBtn" class="primary">Show words</button>
+        <div id="wordDisplay" class="stimulus hidden"></div>
+        <div id="wordTimer" class="muted"></div>
+      </div>
+
+      <div id="stepWorking" class="assessment-step card hidden">
+        <h3>Working memory</h3>
+        <p>A six-digit number will appear for four seconds. Enter it after it disappears.</p>
+        <button id="startDigitsBtn" class="primary">Show number</button>
+        <div id="digitDisplay" class="stimulus mono hidden"></div>
+        <div id="digitEntry" class="hidden">
+          <label class="field">
+            <span>Enter the number</span>
+            <input id="digitAnswer" type="text" inputmode="numeric" maxlength="6" autocomplete="off" />
+          </label>
+          <button id="submitDigitsBtn" class="secondary">Submit</button>
+        </div>
+        <div id="digitStatus" class="muted"></div>
+      </div>
+
+      <div id="stepAttention" class="assessment-step card hidden">
+        <h3>Attention & reaction time</h3>
+        <p>
+          Tap <strong>Start</strong>. Wait for the circle to turn into <strong>TAP!</strong>, then tap it as fast as you can.
+          Five trials will be averaged.
+        </p>
+        <button id="startReactionBtn" class="primary">Start trials</button>
+        <button id="reactionTarget" class="reaction-target hidden">Wait…</button>
+        <div id="reactionStatus" class="muted"></div>
+      </div>
+
+      <div id="stepExecutive" class="assessment-step card hidden">
+        <h3>Executive function</h3>
+        <p>Type the alternating sequence shown below without copying and pasting.</p>
+        <div class="prompt-sequence">1 → A → 2 → B → 3 → C → 4 → D</div>
+        <label class="field">
+          <span>Your answer</span>
+          <input id="alternateAnswer" type="text" autocomplete="off" />
+        </label>
+      </div>
+
+      <div id="stepRecall" class="assessment-step card hidden">
+        <h3>Delayed recall</h3>
+        <p>Enter as many of the five original words as you can remember, in any order.</p>
+        <label class="field">
+          <span>Remembered words</span>
+          <textarea id="recallAnswer" rows="4" autocomplete="off"></textarea>
+        </label>
+      </div>
+
+      <div id="stepFunction" class="assessment-step card hidden">
+        <h3>Everyday cognitive function</h3>
+        <p class="muted">Compare with your own usual ability over recent months.</p>
+        <div id="functionQuestions"></div>
+      </div>
+
+      <div class="card assessment-nav">
+        <button id="backBtn" class="ghost">Back</button>
+        <button id="nextBtn" class="primary">Continue</button>
+      </div>
+    </section>
+
+    <section id="resultView" class="view">
+      <article class="card result-card">
+        <div class="eyebrow">SESSION COMPLETE</div>
+        <h2>Your monthly summary</h2>
+        <div id="overallScore" class="score-orb">—</div>
+        <p id="resultMessage"></p>
+
+        <div class="metric-grid">
+          <div class="metric"><span>Memory</span><strong id="memoryScore">—</strong></div>
+          <div class="metric"><span>Working memory</span><strong id="workingScore">—</strong></div>
+          <div class="metric"><span>Attention</span><strong id="attentionScore">—</strong></div>
+          <div class="metric"><span>Executive function</span><strong id="executiveScore">—</strong></div>
+        </div>
+
+        <div id="functionNotice" class="notice hidden"></div>
+
+        <div class="button-row">
+          <button id="resultHomeBtn" class="primary">Return home</button>
+          <button id="resultHistoryBtn" class="secondary">View trends</button>
+        </div>
+      </article>
+    </section>
+
+    <section id="historyView" class="view">
+      <div class="card">
+        <div class="step-head">
+          <div>
+            <div class="eyebrow">LONGITUDINAL HISTORY</div>
+            <h2>Your trends</h2>
+          </div>
+          <button id="historyHomeBtn" class="ghost">Home</button>
+        </div>
+      </div>
+
+      <article class="card">
+        <h3>Overall cognitive score</h3>
+        <div id="historyEmpty" class="empty-state">No completed sessions yet.</div>
+        <canvas id="historyChart" class="hidden" width="900" height="420"></canvas>
+      </article>
+
+      <article class="card">
+        <h3>Domain trends</h3>
+        <canvas id="domainChart" class="hidden" width="900" height="420"></canvas>
+        <div id="domainEmpty" class="empty-state">Complete sessions to see domain-level trends.</div>
+      </article>
+
+      <article class="card">
+        <h3>Stored sessions</h3>
+        <div id="historyTable"></div>
+      </article>
+
+      <article class="card">
+        <h3>Backup & privacy</h3>
+        <p class="muted">
+          Data is stored in this browser only. Clearing website data may erase it, so export a backup periodically.
+        </p>
+        <div class="button-row">
+          <button id="exportBtn" class="secondary">Export JSON backup</button>
+          <label class="file-button">
+            Import JSON backup
+            <input id="importFile" type="file" accept=".json,application/json" />
+          </label>
+          <button id="clearDataBtn" class="danger">Erase all data</button>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="shell footer">
+    Cognitive Tracker prototype • Local-first • Not a diagnostic medical device
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
