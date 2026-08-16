@@ -7,265 +7,95 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Cognitive Tracker" />
-  <title>Cognitive Tracker</title>
+  <title>Cognitive Tracker V2</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="app-header">
-    <div class="shell header-row">
-      <div>
-        <div class="eyebrow">PERSONAL COGNITIVE TRACKING</div>
-        <h1>Cognitive Tracker</h1>
-      </div>
-      <button id="installBtn" class="ghost hidden">Install</button>
-    </div>
-  </header>
+<header class="app-header"><div class="shell header-row"><div><div class="eyebrow">PERSONAL COGNITIVE TRACKING</div><h1>Cognitive Tracker <span class="version">V2</span></h1></div><button id="installBtn" class="ghost hidden">Install</button></div></header>
+<main class="shell">
+<section id="homeView" class="view active">
+  <article class="card hero"><span class="badge">Educational research prototype</span><h2>Track change against your own baseline—not a dementia label.</h2><p>Monthly testing separates <strong>digital/lifestyle strain</strong> from <strong>objective cognitive performance</strong>. Results stay on this device unless you export them.</p><div class="button-row"><button id="startAssessmentBtn" class="primary large">Start monthly assessment</button><button id="showHistoryBtn" class="secondary">View history</button></div></article>
+  <div class="grid two"><article class="card"><h3>Your baseline</h3><div id="baselineStatus" class="big-stat">0/3 sessions</div><p class="muted">The first three completed sessions form your initial personal baseline.</p></article><article class="card"><h3>Stored sessions</h3><div id="sessionCount" class="big-stat">0</div><p class="muted">Saved locally in this browser.</p></article></div>
+  <article class="card"><h3>Latest trend</h3><div id="homeTrendEmpty" class="empty-state">Complete at least two sessions to begin seeing trends.</div><div id="homeTrend" class="hidden"><canvas id="homeChart"></canvas><div id="trendSummary" class="trend-summary"></div></div></article>
+  <article class="card warning"><h3>Important</h3><p>This app does not diagnose dementia, Alzheimer's disease, ADHD, depression, or another medical condition. Persistent or progressive loss of everyday cognitive function deserves professional assessment regardless of screen habits.</p></article>
+</section>
 
-  <main class="shell">
-    <section id="homeView" class="view active">
-      <div class="hero card">
-        <span class="badge">Educational prototype</span>
-        <h2>Track your cognition against your own baseline.</h2>
-        <p>
-          Complete one assessment per month. Results stay on this device unless you export them.
-          This tool does not diagnose dementia or any other medical condition.
-        </p>
-        <div class="button-row">
-          <button id="startAssessmentBtn" class="primary large">Start monthly assessment</button>
-          <button id="showHistoryBtn" class="secondary">View history</button>
-        </div>
-      </div>
+<section id="assessmentView" class="view">
+  <article class="card"><div class="step-head"><div><div class="eyebrow">MONTHLY ASSESSMENT</div><h2 id="stepTitle">Safety</h2></div><div id="stepCounter" class="step-counter">1 / 11</div></div><div class="progress"><span id="progressBar"></span></div></article>
 
-      <div class="grid two">
-        <article class="card">
-          <h3>Your baseline</h3>
-          <div id="baselineStatus" class="big-stat">Not established</div>
-          <p class="muted">The first 3 completed monthly sessions form your initial personal baseline.</p>
-        </article>
+  <article id="stepSafety" class="assessment-step card">
+    <h3>Safety check</h3><p class="muted">These questions override any app score.</p>
+    <label class="check-row"><input id="acuteConfusion" type="checkbox"><span>New or rapidly worsening confusion or major cognitive change.</span></label>
+    <label class="check-row"><input id="neuroSymptoms" type="checkbox"><span>New weakness, facial droop, speech difficulty, major vision change, seizure, or severe sudden headache.</span></label>
+    <label class="check-row"><input id="familiarDisorientation" type="checkbox"><span>I have recently become lost or disoriented on a familiar route.</span></label>
+    <label class="check-row"><input id="progressiveFunction" type="checkbox"><span>My ability to manage familiar work, finances, medications, cooking, or other routine tasks is progressively worsening.</span></label>
+    <div id="safetyNotice" class="notice hidden"></div>
+  </article>
 
-        <article class="card">
-          <h3>Sessions</h3>
-          <div id="sessionCount" class="big-stat">0</div>
-          <p class="muted">Completed assessments stored locally on this browser.</p>
-        </article>
-      </div>
+  <article id="stepContext" class="assessment-step card hidden">
+    <h3>Current-state confounders</h3><p class="muted">A low score under these conditions should be interpreted cautiously.</p>
+    <label class="field"><span>Sleep last night</span><select id="sleepHours"><option value="">Select</option><option value="4">&lt;5 h</option><option value="5.5">5–6 h</option><option value="6.5">6–7 h</option><option value="7.5">7–8 h</option><option value="8.5">8+ h</option></select></label>
+    <label class="field"><span>Stress today</span><select id="stressLevel"><option value="">Select</option><option value="0">Low</option><option value="1">Mild</option><option value="2">Moderate</option><option value="3">High</option></select></label>
+    <label class="check-row"><input id="illnessToday" type="checkbox"><span>Acute illness or unusual fatigue today.</span></label>
+    <label class="check-row"><input id="substanceToday" type="checkbox"><span>Alcohol/recreational substance exposure may affect me today.</span></label>
+    <label class="check-row"><input id="medicationChange" type="checkbox"><span>Sedating medication use or a recent medication change may affect me.</span></label>
+    <label class="check-row"><input id="sensoryIssue" type="checkbox"><span>Uncorrected hearing or vision problems may affect testing.</span></label>
+  </article>
 
-      <article class="card">
-        <h3>Latest trend</h3>
-        <div id="homeTrendEmpty" class="empty-state">
-          Complete several sessions to begin seeing trends.
-        </div>
-        <div id="homeTrend" class="hidden">
-          <canvas id="homeChart" width="900" height="360"></canvas>
-          <div id="trendSummary" class="trend-summary"></div>
-        </div>
-      </article>
+  <article id="stepLifestyle" class="assessment-step card hidden"><h3>Digital cognitive strain</h3><p class="muted">These responses are scored separately from cognitive performance.</p><div id="digitalQuestions"></div></article>
 
-      <article class="card warning">
-        <h3>Important</h3>
-        <p>
-          A poor score on one day can reflect sleep, stress, illness, distraction, medications, substances,
-          vision/hearing issues, or many other factors. Persistent or progressive cognitive changes that
-          interfere with everyday function should be discussed with a healthcare professional.
-        </p>
-      </article>
-    </section>
+  <article id="stepWorking" class="assessment-step card hidden">
+    <h3>Adaptive reverse sequence</h3><p>Digits appear one at a time. Enter each sequence <strong>backward</strong>. Two trials are given at each span length; the test advances if at least one is correct.</p>
+    <button id="startReverseBtn" class="primary">Begin reverse-span task</button><div id="reverseStimulus" class="stimulus mono hidden"></div><div id="reverseEntry" class="hidden"><label class="field"><span>Enter sequence backward</span><input id="reverseAnswer" inputmode="numeric" autocomplete="off"></label><button id="submitReverseBtn" class="secondary">Submit</button></div><div id="reverseStatus" class="muted"></div>
+  </article>
 
-    <section id="assessmentView" class="view">
-      <div class="card">
-        <div class="step-head">
-          <div>
-            <div class="eyebrow">MONTHLY ASSESSMENT</div>
-            <h2 id="stepTitle">Context</h2>
-          </div>
-          <div id="stepCounter" class="step-counter">1 / 7</div>
-        </div>
-        <div class="progress"><span id="progressBar"></span></div>
-      </div>
+  <article id="stepSpatial" class="assessment-step card hidden">
+    <h3>Spatial grid recall</h3><p>Watch cells light up, then reproduce the sequence by tapping cells in the same order.</p>
+    <button id="startSpatialBtn" class="primary">Begin spatial task</button><div id="spatialGrid" class="spatial-grid hidden"></div><div id="spatialStatus" class="muted"></div>
+  </article>
 
-      <div id="stepContext" class="assessment-step card">
-        <h3>How are you doing today?</h3>
-        <p class="muted">This context helps interpret month-to-month changes.</p>
+  <article id="stepAttention" class="assessment-step card hidden">
+    <h3>Sustained attention</h3><p>Tap the large symbol for every <strong>GO</strong> stimulus. Do <strong>not</strong> tap when the red octagon appears. A short practice block comes first.</p>
+    <button id="startAttentionBtn" class="primary">Start practice</button><button id="attentionTarget" class="attention-target hidden" aria-label="attention stimulus">●</button><div id="attentionStatus" class="muted"></div>
+  </article>
 
-        <label class="field">
-          <span>Sleep last night</span>
-          <select id="sleepHours">
-            <option value="">Select</option>
-            <option value="4">&lt;5 hours</option>
-            <option value="5.5">5–6 hours</option>
-            <option value="6.5">6–7 hours</option>
-            <option value="7.5">7–8 hours</option>
-            <option value="8.5">8+ hours</option>
-          </select>
-        </label>
+  <article id="stepExecutive" class="assessment-step card hidden">
+    <h3>Cognitive flexibility</h3><p>Complete a number-only baseline first, then an alternating number-letter block. Tap targets in order; incorrect choices must be corrected.</p>
+    <button id="startExecutiveBtn" class="primary">Start baseline block</button><div id="executiveBoard" class="target-board hidden"></div><div id="executiveStatus" class="muted"></div>
+  </article>
 
-        <label class="field">
-          <span>Stress today</span>
-          <select id="stressLevel">
-            <option value="">Select</option>
-            <option value="0">Low</option>
-            <option value="1">Mild</option>
-            <option value="2">Moderate</option>
-            <option value="3">High</option>
-          </select>
-        </label>
+  <article id="stepRoute" class="assessment-step card hidden">
+    <h3>Route reconstruction</h3><p>Study a short route through the grid, then reproduce it after the route disappears.</p>
+    <button id="startRouteBtn" class="primary">Show route</button><div id="routeGrid" class="route-grid hidden"></div><div id="routeStatus" class="muted"></div>
+  </article>
 
-        <label class="field">
-          <span>Recreational screen/social-media time per day</span>
-          <select id="screenTime">
-            <option value="">Select</option>
-            <option value="0.5">&lt;1 hour</option>
-            <option value="1.5">1–2 hours</option>
-            <option value="3">2–4 hours</option>
-            <option value="5">4–6 hours</option>
-            <option value="7">6+ hours</option>
-          </select>
-        </label>
+  <article id="stepRecall" class="assessment-step card hidden">
+    <h3>Delayed word recall</h3><p>Study the words for 15 seconds. They will disappear. After the delay, enter as many as you remember.</p>
+    <button id="showWordsBtn" class="primary">Show word list</button><div id="wordDisplay" class="stimulus hidden"></div><div id="wordTimer" class="muted"></div><label id="recallField" class="field hidden"><span>Remembered words</span><textarea id="recallAnswer" rows="4"></textarea></label>
+  </article>
 
-        <label class="check-row">
-          <input id="illnessToday" type="checkbox" />
-          <span>I am sick, recovering from illness, or unusually fatigued today.</span>
-        </label>
-      </div>
+  <article id="stepFunction" class="assessment-step card hidden"><h3>Everyday function</h3><p class="muted">Compare with your own usual ability over recent months.</p><div id="functionQuestions"></div></article>
 
-      <div id="stepMemory" class="assessment-step card hidden">
-        <h3>Memory — word learning</h3>
-        <p>Study five words. They will be visible for 15 seconds, then disappear.</p>
-        <button id="startWordsBtn" class="primary">Show words</button>
-        <div id="wordDisplay" class="stimulus hidden"></div>
-        <div id="wordTimer" class="muted"></div>
-      </div>
+  <article id="stepReview" class="assessment-step card hidden"><h3>Ready to score</h3><p>Your cognitive-domain results and digital/lifestyle pattern will be interpreted on separate axes. A single low task is not treated as a diagnosis.</p><div id="completionChecklist" class="mini-list"></div></article>
 
-      <div id="stepWorking" class="assessment-step card hidden">
-        <h3>Working memory</h3>
-        <p>A six-digit number will appear for four seconds. Enter it after it disappears.</p>
-        <button id="startDigitsBtn" class="primary">Show number</button>
-        <div id="digitDisplay" class="stimulus mono hidden"></div>
-        <div id="digitEntry" class="hidden">
-          <label class="field">
-            <span>Enter the number</span>
-            <input id="digitAnswer" type="text" inputmode="numeric" maxlength="6" autocomplete="off" />
-          </label>
-          <button id="submitDigitsBtn" class="secondary">Submit</button>
-        </div>
-        <div id="digitStatus" class="muted"></div>
-      </div>
+  <article class="card assessment-nav"><button id="backBtn" class="ghost">Back</button><button id="nextBtn" class="primary">Continue</button></article>
+</section>
 
-      <div id="stepAttention" class="assessment-step card hidden">
-        <h3>Attention & reaction time</h3>
-        <p>
-          Tap <strong>Start</strong>. Wait for the circle to turn into <strong>TAP!</strong>, then tap it as fast as you can.
-          Five trials will be averaged.
-        </p>
-        <button id="startReactionBtn" class="primary">Start trials</button>
-        <button id="reactionTarget" class="reaction-target hidden">Wait…</button>
-        <div id="reactionStatus" class="muted"></div>
-      </div>
+<section id="resultView" class="view">
+  <article class="card result-card"><div class="eyebrow">SESSION COMPLETE</div><h2>Monthly profile</h2><div class="axis-grid"><div class="axis-card"><span>Digital/lifestyle strain</span><strong id="lifestyleScore">—</strong><small id="lifestyleLabel"></small></div><div class="axis-card"><span>Cognitive performance</span><strong id="performanceScore">—</strong><small id="performanceLabel"></small></div></div><div id="interpretationBox" class="interpretation"></div>
+  <h3>Domain performance</h3><div class="metric-grid"><div class="metric"><span>Working memory</span><strong id="workingScore">—</strong></div><div class="metric"><span>Spatial memory</span><strong id="spatialScore">—</strong></div><div class="metric"><span>Attention</span><strong id="attentionScore">—</strong></div><div class="metric"><span>Executive</span><strong id="executiveScore">—</strong></div><div class="metric"><span>Route memory</span><strong id="routeScore">—</strong></div><div class="metric"><span>Delayed recall</span><strong id="memoryScore">—</strong></div></div><div id="clinicalNotice" class="notice hidden"></div><div class="button-row"><button id="resultHomeBtn" class="primary">Return home</button><button id="resultHistoryBtn" class="secondary">View trends</button></div></article>
+</section>
 
-      <div id="stepExecutive" class="assessment-step card hidden">
-        <h3>Executive function</h3>
-        <p>Type the alternating sequence shown below without copying and pasting.</p>
-        <div class="prompt-sequence">1 → A → 2 → B → 3 → C → 4 → D</div>
-        <label class="field">
-          <span>Your answer</span>
-          <input id="alternateAnswer" type="text" autocomplete="off" />
-        </label>
-      </div>
-
-      <div id="stepRecall" class="assessment-step card hidden">
-        <h3>Delayed recall</h3>
-        <p>Enter as many of the five original words as you can remember, in any order.</p>
-        <label class="field">
-          <span>Remembered words</span>
-          <textarea id="recallAnswer" rows="4" autocomplete="off"></textarea>
-        </label>
-      </div>
-
-      <div id="stepFunction" class="assessment-step card hidden">
-        <h3>Everyday cognitive function</h3>
-        <p class="muted">Compare with your own usual ability over recent months.</p>
-        <div id="functionQuestions"></div>
-      </div>
-
-      <div class="card assessment-nav">
-        <button id="backBtn" class="ghost">Back</button>
-        <button id="nextBtn" class="primary">Continue</button>
-      </div>
-    </section>
-
-    <section id="resultView" class="view">
-      <article class="card result-card">
-        <div class="eyebrow">SESSION COMPLETE</div>
-        <h2>Your monthly summary</h2>
-        <div id="overallScore" class="score-orb">—</div>
-        <p id="resultMessage"></p>
-
-        <div class="metric-grid">
-          <div class="metric"><span>Memory</span><strong id="memoryScore">—</strong></div>
-          <div class="metric"><span>Working memory</span><strong id="workingScore">—</strong></div>
-          <div class="metric"><span>Attention</span><strong id="attentionScore">—</strong></div>
-          <div class="metric"><span>Executive function</span><strong id="executiveScore">—</strong></div>
-        </div>
-
-        <div id="functionNotice" class="notice hidden"></div>
-
-        <div class="button-row">
-          <button id="resultHomeBtn" class="primary">Return home</button>
-          <button id="resultHistoryBtn" class="secondary">View trends</button>
-        </div>
-      </article>
-    </section>
-
-    <section id="historyView" class="view">
-      <div class="card">
-        <div class="step-head">
-          <div>
-            <div class="eyebrow">LONGITUDINAL HISTORY</div>
-            <h2>Your trends</h2>
-          </div>
-          <button id="historyHomeBtn" class="ghost">Home</button>
-        </div>
-      </div>
-
-      <article class="card">
-        <h3>Overall cognitive score</h3>
-        <div id="historyEmpty" class="empty-state">No completed sessions yet.</div>
-        <canvas id="historyChart" class="hidden" width="900" height="420"></canvas>
-      </article>
-
-      <article class="card">
-        <h3>Domain trends</h3>
-        <canvas id="domainChart" class="hidden" width="900" height="420"></canvas>
-        <div id="domainEmpty" class="empty-state">Complete sessions to see domain-level trends.</div>
-      </article>
-
-      <article class="card">
-        <h3>Stored sessions</h3>
-        <div id="historyTable"></div>
-      </article>
-
-      <article class="card">
-        <h3>Backup & privacy</h3>
-        <p class="muted">
-          Data is stored in this browser only. Clearing website data may erase it, so export a backup periodically.
-        </p>
-        <div class="button-row">
-          <button id="exportBtn" class="secondary">Export JSON backup</button>
-          <label class="file-button">
-            Import JSON backup
-            <input id="importFile" type="file" accept=".json,application/json" />
-          </label>
-          <button id="clearDataBtn" class="danger">Erase all data</button>
-        </div>
-      </article>
-    </section>
-  </main>
-
-  <footer class="shell footer">
-    Cognitive Tracker prototype • Local-first • Not a diagnostic medical device
-  </footer>
-
-  <script src="app.js"></script>
+<section id="historyView" class="view">
+  <article class="card"><div class="step-head"><div><div class="eyebrow">LONGITUDINAL HISTORY</div><h2>Your trends</h2></div><button id="historyHomeBtn" class="ghost">Home</button></div></article>
+  <article class="card"><h3>Performance vs lifestyle strain</h3><div id="historyEmpty" class="empty-state">No completed sessions yet.</div><canvas id="historyChart" class="hidden"></canvas></article>
+  <article class="card"><h3>Cognitive domains</h3><canvas id="domainChart" class="hidden"></canvas><div id="domainEmpty" class="empty-state">Complete sessions to see domain trends.</div></article>
+  <article class="card"><h3>Stored sessions</h3><div id="historyTable"></div></article>
+  <article class="card"><h3>Backup & privacy</h3><p class="muted">Data is stored locally in this browser. Clearing site data can erase it.</p><div class="button-row"><button id="exportBtn" class="secondary">Export JSON</button><label class="file-button">Import JSON<input id="importFile" type="file" accept=".json,application/json"></label><button id="clearDataBtn" class="danger">Erase all data</button></div></article>
+</section>
+</main>
+<footer class="shell footer">Cognitive Tracker V2 • Local-first research prototype • Not a diagnostic medical device</footer>
+<script src="app.js"></script>
 </body>
 </html>
