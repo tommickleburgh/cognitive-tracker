@@ -1,0 +1,9 @@
+{
+  "name": "Cognitive Tracker",
+  "short_name": "CogTracker",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#3157d5",
+  "description": "A local-first monthly cognitive self-tracking prototype."
+}
